@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="description" content="Everyday thousands of domain names on the internet are abandoned and left to expire. Some of these domains have existing traffic or are extremely valuable to the right person. Dropfilter was created to make it easy to filter through all the public expiring domain name lists on the web using customizeable criteria, so that you can weed out the crap.">
+
+	<title>Dropfilter by Domaincord</title>
+	
+	<script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.3.5/dist/alpine.min.js" defer></script>
+	<script src="https://cdn.jsdelivr.net/npm/clipboard@2/dist/clipboard.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/moment@2.27.0/moment.min.js"></script>
+	
+	<link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/css/bootstrap.min.css">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css">
+	<style>
+	label {
+		font-weight: bold;
+		font-size: 1rem;
+	}
+	
+	.form-group p {
+		font-size: 0.75rem;
+		font-weight: 300;
+	}
+	
+	.btn {
+		width: 100%;
+		height: 50px;
+	}
+	
+	.copy-button {
+		background-color: #4c5faa;
+		color: white;
+		font-weight: 700;
+		margin: 25px 0;
+	}
+	</style>
+</head>
+<body class="container-fluid">
+	<header>
+		<h1>Dropfilter</h1>
+	</header>
+	
+	<main x-data="filters()">
+		<section class="format">
+			<h2>Choose A Format</h2>
+			<div class="form-group">
+				<label for="outputFormat">Output Format</label>
+				<p></p>
+				<select id="outputFormat" x-model="format">
+					<option value="args" selected>BOT COMMAND</option>
+					<option value="json">PYTHON CLI</option>
+				</select>
+			</div>
+		</section>
+		
+		<section class="filters">
+			<h2>Filters</h2>
+			<p>If you don't specify any keywords or extensions, the full, unfiltered list for the selected date will be returned.</p>
+			<div class="row">
+				<div class="col-md">
+					<div class="form-group">
+						<label for="dropDates">Drop Date</label>
+						<p>Choose the target expiration date you want to filter domains for.</p>
+						<select class="w-100 form-control" id="dropDates" x-model="dropDate">
+							<template x-for="(item, index) in dropDates" :key="index">
+								<option :value="item.value" :selected="item.selected" x-text="item.name" />
+						  	</template>
+						</select>
+					</div>
+					
+					<div class="form-group">
+					    <label>Domain Length</label>
+						<p>Does not include extension or dots in length calculation.</p>
+						<div class="d-flex flex-nowrap justify-content-start align-items-center">
+							<input id="minDomainLength" type="number" x-model="minDomainLength" class="domainLength w-auto" min="1" max="63" />
+							<span class="w-50 mx-3 text-center">to</span>
+							<input id="maxDomainLength" type="number" x-model="maxDomainLength" class="domainLength w-auto" min="1" max="63" />
+						</div>
+					</div>
+					
+					<div class="form-group">
+						<label>
+							<input type="checkbox" x-model="hyphens" />
+							Include hyphens?
+						</label>
+					</div>
+					
+					<div class="form-group">
+						<label>
+							<input type="checkbox" x-model="numbers" />
+							Include numbers?
+						</label>
+					</div>
+				</div>
+				<div class="col-md">
+					<div class="form-group">
+						<label for="extensions">Extensions</label>
+						<p>Type one extension/TLD per line without the leading period or full-stop.</p>
+						<textarea id="extensions" class="w-100" rows="10" x-model="extensions"></textarea>
+					</div>
+				</div>
+				<div class="col-md">
+					<div class="form-group">
+						<label for="keywords">Keywords</label>
+						<p>Type one keyword per line. Do <strong>not</strong> type full domains.</p>
+						<textarea id="keywords" class="w-100" rows="10" x-model="keywords"></textarea>
+					</div>
+				</div>
+			</div>
+		</section>
+		<section class="preview">
+			<h2>Preview</h2>
+			<button class="btn copy-button" data-clipboard-target="#output">Copy to Clipboard</button>
+			<textarea id="output" class="w-100" rows="30" :value="buildCommand()" readonly></textarea>
+		</section>
+	</main>
+	
+	<script>
+	 	var outputFormatInput = document.getElementById('outputFormat')
+		var minLengthInput = document.getElementById('minDomainLength')
+		var maxLengthInput = document.getElementById('maxDomainLength')
+		var keywordsInput = document.getElementById('keywords')
+		var extensionsInput = document.getElementById('extensions')
+		var dropDateInput = document.getElementById('dropDates')
+		var checkboxes = document.querySelectorAll('input[type="checkbox"]')
+		var tlds = [
+			{name: ".com", value: "COM", selected: true},
+			{name: ".net", value: "NET", selected: false},
+			{name: ".org", value: "ORG", selected: false},
+		]
+		var dropDates = [
+			{name: 'Yesterday', value: moment(new Date()).subtract(1, 'days').format('M-DD-YYYY'), selected: false},
+			{name: 'Today', value: moment(new Date()).format('M-DD-YYYY'), selected: true},
+			{name: 'Tomorrow', value: moment(new Date()).add(1, 'days').format('M-DD-YYYY'), selected: false},
+			{name: 'In 2 Days', value: moment(new Date()).add(2, 'days').format('M-DD-YYYY'), selected: false},
+			{name: 'In 3 Days', value: moment(new Date()).add(3, 'days').format('M-DD-YYYY'), selected: false},
+		]
+		document.addEventListener('DOMContentLoaded', function () {
+			new ClipboardJS('.btn.copy-button');
+		})
+		
+		function filters() {
+			return {
+				format: null,
+				dropDate: null,
+				hyphens: false,
+				numbers: false,
+				keywords: null,
+				extensions: null,
+				minDomainLength: 1,
+				maxDomainLength: 63,
+			}
+		}
+		
+		function getKeywords() {
+			var list = keywordsInput.value.trim().split('\n')
+			return list[0] === "" ? [] : list
+		}
+		
+		function getExtensions() {
+			var list = extensionsInput.value.trim().split('\n')
+			return list[0] === "" ? [] : list
+		}
+		
+		function getLength() {
+			return `${minLengthInput.value},${maxLengthInput.value}` || '1,63'
+		}
+		
+		function buildCommand() {
+			var config = {
+				dropDate: dropDateInput.value,
+				includeTld: false,
+				minDomainLength: parseInt(minLengthInput.value),
+				maxDomainLength: parseInt(maxDomainLength.value),
+				noHyphens: !checkboxes[0].checked,
+				noNumbers: !checkboxes[1].checked,
+				tlds: getExtensions(),
+				keywords: getKeywords()
+			}
+			
+			return outputFormatInput.value === 'json' 
+				? JSON.stringify(config, null, 2)
+			   	: [
+					'df:run',
+					`--date=${config.dropDate}`,
+					`--length=${getLength()}`,
+					!config.noHyphens ? '-h' : null,
+					!config.noNumbers ? '-n' : null,
+					getExtensions().length ? `--extensions=${config.tlds.join(',')}` : null,
+					getKeywords().length ? `--keywords=${config.keywords.join(',')}` : null,
+				].join(' ')
+		}
+	</script>
+</body>
+</html>
